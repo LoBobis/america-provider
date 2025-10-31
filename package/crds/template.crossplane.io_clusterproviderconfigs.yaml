@@ -4,14 +4,14 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: clusterproviderconfigs.template.crossplane.io
+  name: clusterproviderconfigs.america.crossplane.io
 spec:
-  group: template.crossplane.io
+  group: america.crossplane.io
   names:
     categories:
     - crossplane
     - provider
-    - template
+    - america
     kind: ClusterProviderConfig
     listKind: ClusterProviderConfigList
     plural: clusterproviderconfigs
@@ -29,7 +29,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: A ClusterProviderConfig configures a Template provider.
+        description: A ClusterProviderConfig configures a America provider.
         properties:
           apiVersion:
             description: |-
