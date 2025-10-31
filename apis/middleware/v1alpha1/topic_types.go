@@ -28,7 +28,12 @@ import (
 
 // TopicParameters are the configurable fields of a Topic.
 type TopicParameters struct {
-	ConfigurableField string `json:"configurableField"`
+	Name string `json:"name"`
+    Description string `json:"description"`
+	MaxMessageSize uint `json:"max_message_size"`
+	MaxConsumerGroups uint `json:"max_consumer_groups"`
+	RetentionTime float32 `json:"retention_time"`
+	NumOfPartitions uint `json:"num_of_partitions"`
 }
 
 // TopicObservation are the observable fields of a Topic.
