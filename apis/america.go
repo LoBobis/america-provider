@@ -22,13 +22,14 @@ import (
 
 	//samplev1alpha1 "github.com/crossplane/provider-america/apis/sample/v1alpha1"
 	americav1alpha1 "github.com/crossplane/provider-america/apis/v1alpha1"
+	middlewarev1alpha1 "github.com/crossplane/provider-america/apis/v1alpha1"
 )
 
 func init() {
 	// Register the types with the Scheme so the components can map objects to GroupVersionKinds and back
 	AddToSchemes = append(AddToSchemes,
 		americav1alpha1.SchemeBuilder.AddToScheme,
-		//samplev1alpha1.SchemeBuilder.AddToScheme,
+		middlewarev1alpha1.SchemeBuilder.AddToScheme,
 	)
 }
 

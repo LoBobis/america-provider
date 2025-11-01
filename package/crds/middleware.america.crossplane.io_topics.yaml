@@ -4,18 +4,18 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: mytypes.sample.america.crossplane.io
+  name: topics.middleware.america.crossplane.io
 spec:
-  group: sample.america.crossplane.io
+  group: middleware.america.crossplane.io
   names:
     categories:
     - crossplane
     - managed
     - america
-    kind: MyType
-    listKind: MyTypeList
-    plural: mytypes
-    singular: mytype
+    kind: Topic
+    listKind: TopicList
+    plural: topics
+    singular: topic
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -34,7 +34,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: A MyType is an example API type.
+        description: A Topic is an example API type.
         properties:
           apiVersion:
             description: |-
@@ -54,15 +54,30 @@ spec:
           metadata:
             type: object
           spec:
-            description: A MyTypeSpec defines the desired state of a MyType.
+            description: A TopicSpec defines the desired state of a Topic.
             properties:
               forProvider:
-                description: MyTypeParameters are the configurable fields of a MyType.
+                description: TopicParameters are the configurable fields of a Topic.
                 properties:
-                  configurableField:
+                  description:
                     type: string
+                  max_consumer_groups:
+                    type: integer
+                  max_message_size:
+                    type: integer
+                  name:
+                    type: string
+                  num_of_partitions:
+                    type: integer
+                  retention_time:
+                    type: integer
                 required:
-                - configurableField
+                - description
+                - max_consumer_groups
+                - max_message_size
+                - name
+                - num_of_partitions
+                - retention_time
                 type: object
               managementPolicies:
                 default:
@@ -123,17 +138,17 @@ spec:
             - forProvider
             type: object
           status:
-            description: A MyTypeStatus represents the observed state of a MyType.
+            description: A TopicStatus represents the observed state of a Topic.
             properties:
               atProvider:
-                description: MyTypeObservation are the observable fields of a MyType.
+                description: TopicObservation are the observable fields of a Topic.
                 properties:
-                  configurableField:
-                    type: string
                   observableField:
                     type: string
+                  status:
+                    type: string
                 required:
-                - configurableField
+                - status
                 type: object
               conditions:
                 description: Conditions of the resource.

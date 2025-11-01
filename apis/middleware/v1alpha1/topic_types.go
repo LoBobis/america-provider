@@ -32,13 +32,13 @@ type TopicParameters struct {
     Description string `json:"description"`
 	MaxMessageSize uint `json:"max_message_size"`
 	MaxConsumerGroups uint `json:"max_consumer_groups"`
-	RetentionTime float32 `json:"retention_time"`
+	RetentionTime int `json:"retention_time"`
 	NumOfPartitions uint `json:"num_of_partitions"`
 }
 
 // TopicObservation are the observable fields of a Topic.
 type TopicObservation struct {
-	ConfigurableField string `json:"configurableField"`
+	Status string `json:"status"`
 	ObservableField   string `json:"observableField,omitempty"`
 }
 
