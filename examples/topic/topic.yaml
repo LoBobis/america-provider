@@ -1,0 +1,22 @@
+apiVersion: middleware.america.crossplane.io/v1alpha1
+kind: Topic
+metadata:
+  name: topic-example
+  namespace: default
+  annotations:
+    # Optional: set an external identifier if your provider expects one
+    crossplane.io/external-name: topic-example
+spec:
+  providerConfigRef:
+    kind: ClusterProviderConfig
+    name: default
+
+  # Required provider-side fields
+  forProvider:
+    name: topic-example
+    description: "Example Topic created via Crossplane"
+    num_of_partitions: 3              # e.g., Kafka partitions
+    max_message_size: 1048576         # bytes (1 MiB)
+    max_consumer_groups: 10
+    retention_time: 604800            # seconds (7 days)
+
