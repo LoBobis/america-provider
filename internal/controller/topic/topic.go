@@ -17,10 +17,14 @@ limitations under the License.
 package topic
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/feature"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -39,11 +43,11 @@ import (
 )
 
 const (
-	errNotTopic   = "managed resource is not a Topic custom resource"
+	errNotTopic     = "managed resource is not a Topic custom resource"
 	errTrackPCUsage = "cannot track ProviderConfig usage"
-	errGetPC    = "cannot get ProviderConfig"
-	errGetCPC   = "cannot get ClusterProviderConfig"
-	errGetCreds = "cannot get credentials"
+	errGetPC        = "cannot get ProviderConfig"
+	errGetCPC       = "cannot get ClusterProviderConfig"
+	errGetCreds     = "cannot get credentials"
 
 	errNewClient = "cannot create new Service"
 )
@@ -70,6 +74,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 
 	opts := []managed.ReconcilerOption{
 		managed.WithExternalConnector(&connector{
+			logger:       o.Logger,
 			kube:         mgr.GetClient(),
 			usage:        resource.NewProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
 			newServiceFn: newNoOpService}),
@@ -112,6 +117,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 // A connector is expected to produce an ExternalClient when its Connect method
 // is called.
 type connector struct {
+	logger logging.Logger
 	kube         client.Client
 	usage        *resource.ProviderConfigUsageTracker
 	newServiceFn func(creds []byte) (interface{}, error)
@@ -137,7 +143,7 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 	// Switch to ModernManaged resource to get ProviderConfigRef
 	m := mg.(resource.ModernManaged)
 	ref := m.GetProviderConfigReference()
-
+	am := ""
 	switch ref.Kind {
 	case "ProviderConfig":
 		pc := &apisv1alpha1.ProviderConfig{}
@@ -145,12 +151,14 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 			return nil, errors.Wrap(err, errGetPC)
 		}
 		cd = pc.Spec.Credentials
+		am = pc.Spec.AmericaURL
 	case "ClusterProviderConfig":
 		cpc := &apisv1alpha1.ClusterProviderConfig{}
 		if err := c.kube.Get(ctx, types.NamespacedName{Name: ref.Name}, cpc); err != nil {
 			return nil, errors.Wrap(err, errGetCPC)
 		}
 		cd = cpc.Spec.Credentials
+		am = cpc.Spec.AmericaURL
 	default:
 		return nil, errors.Errorf("unsupported provider config kind: %s", ref.Kind)
 	}
@@ -163,8 +171,10 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 	if err != nil {
 		return nil, errors.Wrap(err, errNewClient)
 	}
+	l := c.logger.WithValues("topic", cr.Name)
 
-	return &external{service: svc}, nil
+
+	return &external{service: svc, logger: l, america_url: am, kube: c.kube}, nil
 }
 
 // An ExternalClient observes, then either creates, updates, or deletes an
@@ -172,7 +182,10 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 type external struct {
 	// A 'client' used to connect to the external resource API. In practice this
 	// would be something like an AWS SDK client.
+	logger logging.Logger
 	service interface{}
+	america_url string
+	kube client.Client
 }
 
 func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
@@ -180,9 +193,54 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	if !ok {
 		return managed.ExternalObservation{}, errors.New(errNotTopic)
 	}
+	fmt.Printf("topic_id: %+v", cr.Status.AtProvider.TopicID)
+	//cr.Status.AtProvider.TopicID = "aaaaa"
 
+	//c.logger.Debug(cr.Status.AtProvider.TopicId)
 	// These fmt statements should be removed in the real implementation.
-	fmt.Printf("Observing: %+v", cr)
+	if cr.Status.AtProvider.TopicID == "" {
+		return managed.ExternalObservation{
+		// Return false when the external resource does not exist. This lets
+		// the managed resource reconciler know that it needs to call Create to
+		// (re)create the resource, or that it has successfully been deleted.
+		ResourceExists: false,
+
+		// Return false when the external resource exists, but it not up to date
+		// with the desired managed resource state. This lets the managed
+		// resource reconciler know that it needs to call Update.
+		ResourceUpToDate: true,
+
+		// Return any details that may be required to connect to the external
+		// resource. These will be stored as the connection secret.
+		ConnectionDetails: managed.ConnectionDetails{},
+	}, nil
+	}
+
+
+	fmt.Printf("Observing: %+v", cr.Status.AtProvider)
+	url := c.america_url+"/deployments/" +  cr.Status.AtProvider.TopicID
+	c.logger.Info("AmericaURL", "url", url)
+	jsonBody := []byte(`{
+    "name": "eyal2",
+    "parameters": {
+        "hi": "hi"
+      }
+    }`)
+	req, err := http.NewRequest("GET", url, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		fmt.Println("Error creating request:", err)
+		return managed.ExternalObservation{}, errors.New(errNotTopic)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error sending request:", err)
+		return managed.ExternalObservation{}, errors.New(errNotTopic)
+	}
+	defer resp.Body.Close()
 
 	return managed.ExternalObservation{
 		// Return false when the external resource does not exist. This lets
@@ -201,13 +259,66 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	}, nil
 }
 
+type Payload struct {
+	Name       string            `json:"name"`
+	Parameters map[string]string `json:"parameters"`
+}
+
 func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
 	cr, ok := mg.(*v1alpha1.Topic)
 	if !ok {
 		return managed.ExternalCreation{}, errors.New(errNotTopic)
 	}
 
-	fmt.Printf("Creating: %+v", cr)
+	url := c.america_url + "/deployments"
+	c.logger.Info("AmericaURL", "url", url)
+
+	data := Payload{
+		// The injected value you requested:
+		Name: cr.Name, 
+		
+		Parameters: map[string]string{
+			"hi": "hi",
+		},
+	}
+
+
+	jsonData, err := json.Marshal(data) 
+	if err != nil {
+		fmt.Println("Error marshalling JSON:", err)
+		return managed.ExternalCreation{}, errors.New(errNotTopic)
+	}
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		fmt.Println("Error creating request:", err)
+		return managed.ExternalCreation{}, errors.New(errNotTopic)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error sending request:", err)
+		return managed.ExternalCreation{}, errors.New(errNotTopic)
+	}
+	defer resp.Body.Close()
+
+	var creationResponse struct {
+        DeploymentId string `json:"deployment_id"`
+		Message string `json:"message"`
+    }
+
+	if err := json.NewDecoder(resp.Body).Decode(&creationResponse); err != nil {
+        return managed.ExternalCreation{}, errors.Wrap(err, "failed to parse creation response")
+    }
+	//condition.SetConditions(mg, xpv1.Creating())
+	
+	cr.Status.AtProvider.TopicID = creationResponse.DeploymentId
+	if err := c.kube.Status().Update(ctx, cr); err != nil {
+        return managed.ExternalCreation{}, errors.Wrap(err, "cannot update status of MyResource")
+    }
+	fmt.Printf("Creating: %+v", creationResponse.DeploymentId)
 
 	return managed.ExternalCreation{
 		// Optionally return any details that may be required to connect to the

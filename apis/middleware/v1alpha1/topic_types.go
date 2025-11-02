@@ -40,6 +40,7 @@ type TopicParameters struct {
 type TopicObservation struct {
 	Status          string `json:"status"`
 	ObservableField string `json:"observableField,omitempty"`
+	TopicID         string `json:"topic_id"`
 }
 
 // A TopicSpec defines the desired state of a Topic.

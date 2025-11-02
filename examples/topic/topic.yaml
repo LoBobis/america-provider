@@ -1,7 +1,7 @@
 apiVersion: middleware.america.crossplane.io/v1alpha1
 kind: Topic
 metadata:
-  name: topic-example
+  name: topic-example5
   namespace: default
   annotations:
     # Optional: set an external identifier if your provider expects one
