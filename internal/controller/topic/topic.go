@@ -37,6 +37,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/statemetrics"
+	americaClient "github.com/crossplane/provider-america/internal/clients/america"
 
 	v1alpha1 "github.com/crossplane/provider-america/apis/middleware/v1alpha1"
 	apisv1alpha1 "github.com/crossplane/provider-america/apis/v1alpha1"
@@ -77,7 +78,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 			logger:       o.Logger,
 			kube:         mgr.GetClient(),
 			usage:        resource.NewProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
-			newServiceFn: newNoOpService}),
+			newAmericaClientFn: americaClient.NewClient}),
 		managed.WithLogger(o.Logger.WithValues("controller", name)),
 		managed.WithPollInterval(o.PollInterval),
 		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
@@ -120,7 +121,7 @@ type connector struct {
 	logger logging.Logger
 	kube         client.Client
 	usage        *resource.ProviderConfigUsageTracker
-	newServiceFn func(creds []byte) (interface{}, error)
+	newAmericaClientFn func(log logging.Logger, creda string) (americaClient.Client, error)
 }
 
 // Connect typically produces an ExternalClient by:
@@ -166,15 +167,15 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 	if err != nil {
 		return nil, errors.Wrap(err, errGetCreds)
 	}
-
-	svc, err := c.newServiceFn(data)
+	creds := string(data)
+	l := c.logger.WithValues("topic", cr.Name)
+	a_client, err := c.newAmericaClientFn(l, creds)
 	if err != nil {
 		return nil, errors.Wrap(err, errNewClient)
 	}
-	l := c.logger.WithValues("topic", cr.Name)
 
 
-	return &external{service: svc, logger: l, america_url: am, kube: c.kube}, nil
+	return &external{america_client: a_client, logger: l, america_url: am, kube: c.kube}, nil
 }
 
 // An ExternalClient observes, then either creates, updates, or deletes an
@@ -183,9 +184,9 @@ type external struct {
 	// A 'client' used to connect to the external resource API. In practice this
 	// would be something like an AWS SDK client.
 	logger logging.Logger
-	service interface{}
 	america_url string
 	kube client.Client
+	america_client americaClient.Client
 }
 
 func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
@@ -215,7 +216,6 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		ConnectionDetails: managed.ConnectionDetails{},
 	}, nil
 	}
-
 
 	fmt.Printf("Observing: %+v", cr.Status.AtProvider)
 	url := c.america_url+"/deployments/" +  cr.Status.AtProvider.TopicID
@@ -272,53 +272,25 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 
 	url := c.america_url + "/deployments"
 	c.logger.Info("AmericaURL", "url", url)
-
-	data := Payload{
-		// The injected value you requested:
-		Name: cr.Name, 
-		
-		Parameters: map[string]string{
-			"hi": "hi",
-		},
-	}
-
-
-	jsonData, err := json.Marshal(data) 
+	data2, err := json.Marshal(cr.Spec.ForProvider)
+	fmt.Printf(string(data2))
 	if err != nil {
 		fmt.Println("Error marshalling JSON:", err)
 		return managed.ExternalCreation{}, errors.New(errNotTopic)
 	}
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+
+	resp, err := c.america_client.CreateDeployment(ctx, cr.Name, url, cr.Spec.ForProvider.Description,data2)
 	if err != nil {
-		fmt.Println("Error creating request:", err)
+		fmt.Println("Error marshalling JSON:", err)
 		return managed.ExternalCreation{}, errors.New(errNotTopic)
 	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Println("Error sending request:", err)
-		return managed.ExternalCreation{}, errors.New(errNotTopic)
-	}
-	defer resp.Body.Close()
-
-	var creationResponse struct {
-        DeploymentId string `json:"deployment_id"`
-		Message string `json:"message"`
-    }
-
-	if err := json.NewDecoder(resp.Body).Decode(&creationResponse); err != nil {
-        return managed.ExternalCreation{}, errors.Wrap(err, "failed to parse creation response")
-    }
-	//condition.SetConditions(mg, xpv1.Creating())
 	
-	cr.Status.AtProvider.TopicID = creationResponse.DeploymentId
+	
+	cr.Status.AtProvider.TopicID = resp.DeploymentId
 	if err := c.kube.Status().Update(ctx, cr); err != nil {
         return managed.ExternalCreation{}, errors.Wrap(err, "cannot update status of MyResource")
     }
-	fmt.Printf("Creating: %+v", creationResponse.DeploymentId)
+	fmt.Printf("Creating: %+v", resp.DeploymentId)
 
 	return managed.ExternalCreation{
 		// Optionally return any details that may be required to connect to the
