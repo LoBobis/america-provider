@@ -12,7 +12,8 @@ import (
 )
 
 type Client interface {
-	CreateDeployment(ctx context.Context, name string,america_url string, resource_type string, parameters []byte) (creationResponse, error)
+	CreateDeployment(ctx context.Context, name string,america_url string, resource_type string, parameters string) (creationResponse, error)
+	GetDeployment(ctx context.Context, deployment_id string,america_url string) (AmericaDeploymentResponse, error)
 }
 
 type client struct {
@@ -23,8 +24,16 @@ type client struct {
 type CreateDeploymentRequest struct {
 	ResourceType string `json:"resource_type"`
 	Name string `json:"name"`
-	Parameters []byte `json:"parameters"`
+	Parameters string `json:"parameters"`
 }
+
+type AmericaDeploymentResponse struct {
+	ID         string                 `json:"id"`
+	Name       string                 `json:"name"`
+	Parameters map[string]interface{} `json:"parameters"`
+	Status     string                 `json:"status"`
+}
+
 
 type creationResponse struct {
         DeploymentId string `json:"deployment_id"`
@@ -32,7 +41,7 @@ type creationResponse struct {
 }
 
 
-func (ac *client) CreateDeployment(ctx context.Context, name string,america_url string, resource_type string, parameters []byte) (creationResponse, error){
+func (ac *client) CreateDeployment(ctx context.Context, name string,america_url string, resource_type string, parameters string) (creationResponse, error){
 	createDeploymentRequest:= CreateDeploymentRequest{
 		ResourceType: resource_type,
 		Name: name,
@@ -68,6 +77,37 @@ func (ac *client) CreateDeployment(ctx context.Context, name string,america_url 
 
 	return c, nil
 }
+
+
+func (ac *client) GetDeployment(ctx context.Context, deployment_id string,america_url string) (AmericaDeploymentResponse, error) {
+	//fmt.Printf("Observing: %+v", cr.Status.AtProvider)
+	url := america_url+"/deployments/" +  deployment_id
+	ac.log.Info("AmericaURL", "url", url)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		fmt.Println("Error creating request:", err)
+		return AmericaDeploymentResponse{}, errors.Wrap(err, "Couldnt Create New Request") 
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error sending request:", err)
+		return AmericaDeploymentResponse{}, errors.Wrap(err, "Couldnt send the new request")
+	}
+	defer resp.Body.Close()
+
+	var c = AmericaDeploymentResponse{}
+
+	if err := json.NewDecoder(resp.Body).Decode(&c); err != nil {
+        return AmericaDeploymentResponse{}, errors.Wrap(err, "Couldnt decode the response"+ deployment_id)
+	}
+	return c, nil
+}
+
 
 
 

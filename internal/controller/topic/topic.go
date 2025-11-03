@@ -17,12 +17,9 @@ limitations under the License.
 package topic
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-
 	"github.com/crossplane/crossplane-runtime/v2/pkg/feature"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/logging"
 
@@ -216,31 +213,18 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		ConnectionDetails: managed.ConnectionDetails{},
 	}, nil
 	}
-
-	fmt.Printf("Observing: %+v", cr.Status.AtProvider)
-	url := c.america_url+"/deployments/" +  cr.Status.AtProvider.TopicID
-	c.logger.Info("AmericaURL", "url", url)
-	jsonBody := []byte(`{
-    "name": "eyal2",
-    "parameters": {
-        "hi": "hi"
-      }
-    }`)
-	req, err := http.NewRequest("GET", url, bytes.NewBuffer(jsonBody))
+	deployment_id := cr.Status.AtProvider.TopicID
+	url := c.america_url
+	resp, err := c.america_client.GetDeployment(ctx,  deployment_id ,url)
 	if err != nil {
-		fmt.Println("Error creating request:", err)
+		fmt.Println("Error marshalling JSON:", err)
 		return managed.ExternalObservation{}, errors.New(errNotTopic)
 	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Println("Error sending request:", err)
-		return managed.ExternalObservation{}, errors.New(errNotTopic)
-	}
-	defer resp.Body.Close()
+	fmt.Printf(resp.Status)
+	cr.Status.AtProvider.Status = resp.Status
+	if err := c.kube.Status().Update(ctx, cr); err != nil {
+        return managed.ExternalObservation{}, errors.Wrap(err, "cannot update status of MyResource")
+    }
 
 	return managed.ExternalObservation{
 		// Return false when the external resource does not exist. This lets
@@ -272,14 +256,26 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 
 	url := c.america_url + "/deployments"
 	c.logger.Info("AmericaURL", "url", url)
+
+	fmt.Println("aaaaa")
+
+	fmt.Println((cr.Spec.ForProvider))
+
+
+	fmt.Println("eyal")
+
 	data2, err := json.Marshal(cr.Spec.ForProvider)
-	fmt.Printf(string(data2))
+
+
+	fmt.Println(string(data2))
+
+
 	if err != nil {
 		fmt.Println("Error marshalling JSON:", err)
 		return managed.ExternalCreation{}, errors.New(errNotTopic)
 	}
 
-	resp, err := c.america_client.CreateDeployment(ctx, cr.Name, url, cr.Spec.ForProvider.Description,data2)
+	resp, err := c.america_client.CreateDeployment(ctx, cr.Name, url, cr.Spec.ForProvider.Description,string(data2))
 	if err != nil {
 		fmt.Println("Error marshalling JSON:", err)
 		return managed.ExternalCreation{}, errors.New(errNotTopic)
@@ -287,6 +283,7 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 	
 	
 	cr.Status.AtProvider.TopicID = resp.DeploymentId
+	cr.Status.AtProvider.Status = "Pending"
 	if err := c.kube.Status().Update(ctx, cr); err != nil {
         return managed.ExternalCreation{}, errors.Wrap(err, "cannot update status of MyResource")
     }
