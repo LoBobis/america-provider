@@ -1,0 +1,44 @@
+// {
+//   "name": "Crossplane Provider Dev",
+//   "build": {
+//     "dockerfile": "Dockerfile",
+//     "context": ".."
+//   },
+//   "runArgs": ["--network=host"],
+//   "workspaceFolder": "/workspace",
+//   "remoteUser": "vscode",
+//   "postCreateCommand": "make tidy || true",
+//   "customizations": {
+//     "vscode": {
+//       "extensions": [
+//         "golang.go",
+//         "ms-azuretools.vscode-docker",
+//         "redhat.vscode-yaml",
+//         "ms-kubernetes-tools.vscode-kubernetes-tools"
+//       ],
+//       "settings": {
+//         "go.toolsManagement.autoUpdate": false,
+//         "go.useLanguageServer": true,
+//         "go.formatTool": "gofumpt",
+//         "gopls": { "ui.semanticTokens": true }
+//       }
+//     }
+//   },
+//   "features": {
+//     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+//     "ghcr.io/devcontainers/features/git:1": {}
+//   }
+// }
+{
+  "name": "Basic Go Devcontainer",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "workspaceFolder": "/workspace",
+  "remoteUser": "vscode",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "postCreateCommand": "go mod download"
+}

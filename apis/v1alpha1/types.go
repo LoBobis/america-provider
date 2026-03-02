@@ -21,6 +21,7 @@ type ProviderCredentials struct {
 }
 
 type ProviderConfigSpec struct {
+	AmericaURL string `json:"america_url"`
 	// Credentials required to authenticate to this provider.
 	Credentials ProviderCredentials `json:"credentials"`
 }

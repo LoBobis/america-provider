@@ -30,6 +30,7 @@ kind: ClusterProviderConfig
 metadata:
   name: default
 spec:
+  america_url: "http://localhost:8000"
   credentials:
     source: Secret
     secretRef:

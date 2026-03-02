@@ -150,8 +150,11 @@ spec:
                     type: integer
                   status:
                     type: string
+                  topic_id:
+                    type: string
                 required:
                 - status
+                - topic_id
                 type: object
               conditions:
                 description: Conditions of the resource.

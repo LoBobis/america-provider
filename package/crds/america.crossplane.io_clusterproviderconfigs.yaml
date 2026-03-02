@@ -50,6 +50,8 @@ spec:
             type: object
           spec:
             properties:
+              america_url:
+                type: string
               credentials:
                 description: Credentials required to authenticate to this provider.
                 properties:
@@ -107,6 +109,7 @@ spec:
                 - source
                 type: object
             required:
+            - america_url
             - credentials
             type: object
           status:
