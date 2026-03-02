@@ -20,9 +20,9 @@ package apis
 import (
 	"k8s.io/apimachinery/pkg/runtime"
 
+	middlewarev1alpha1 "github.com/crossplane/provider-america/apis/middleware/v1alpha1"
 	//samplev1alpha1 "github.com/crossplane/provider-america/apis/sample/v1alpha1"
 	americav1alpha1 "github.com/crossplane/provider-america/apis/v1alpha1"
-	middlewarev1alpha1 "github.com/crossplane/provider-america/apis/v1alpha1"
 )
 
 func init() {

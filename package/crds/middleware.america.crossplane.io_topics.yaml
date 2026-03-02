@@ -145,6 +145,9 @@ spec:
                 properties:
                   observableField:
                     type: string
+                  observedGeneration:
+                    format: int64
+                    type: integer
                   status:
                     type: string
                 required:

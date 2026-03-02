@@ -18,9 +18,11 @@ package main
 
 import (
 	"fmt"
+	americawebhook "github.com/crossplane/provider-america/internal/america-webhook"
 	"io"
 	"os"
 	"path/filepath"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -148,7 +150,13 @@ func main() {
 		o.ChangeLogOptions = &clo
 	}
 
+	webhookEvents := make(chan event.GenericEvent, 1024)
+
+	// 2. Start webhook server
+	whs := &americawebhook.Server{Events: webhookEvents}
+	go whs.Start(":8081")
+
 	kingpin.FatalIfError(customresourcesgate.Setup(mgr, o), "Cannot setup CRD gate controller")
-	kingpin.FatalIfError(america.SetupGated(mgr, o), "Cannot setup America controllers")
+	kingpin.FatalIfError(america.SetupGated(mgr, o, webhookEvents), "Cannot setup America controllers")
 	kingpin.FatalIfError(mgr.Start(ctrl.SetupSignalHandler()), "Cannot start controller manager")
 }

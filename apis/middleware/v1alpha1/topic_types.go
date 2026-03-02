@@ -28,18 +28,19 @@ import (
 
 // TopicParameters are the configurable fields of a Topic.
 type TopicParameters struct {
-	Name string `json:"name"`
-    Description string `json:"description"`
-	MaxMessageSize uint `json:"max_message_size"`
-	MaxConsumerGroups uint `json:"max_consumer_groups"`
-	RetentionTime int `json:"retention_time"`
-	NumOfPartitions uint `json:"num_of_partitions"`
+	Name              string `json:"name"`
+	Description       string `json:"description"`
+	MaxMessageSize    uint   `json:"max_message_size"`
+	MaxConsumerGroups uint   `json:"max_consumer_groups"`
+	RetentionTime     int    `json:"retention_time"`
+	NumOfPartitions   uint   `json:"num_of_partitions"`
 }
 
 // TopicObservation are the observable fields of a Topic.
 type TopicObservation struct {
-	Status string `json:"status"`
-	ObservableField   string `json:"observableField,omitempty"`
+	Status             string `json:"status"`
+	ObservedGeneration int64  `json:"observedGeneration,omitempty"`
+	ObservableField    string `json:"observableField,omitempty"`
 }
 
 // A TopicSpec defines the desired state of a Topic.

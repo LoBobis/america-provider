@@ -1,0 +1,6 @@
+apiVersion: pkg.crossplane.io/v1
+kind: Function
+metadata:
+  name: function-sequence-ordering
+spec:
+  package: docker.io/eyalko123/function-sequence-ordering:v0.1.5

@@ -19,31 +19,34 @@ package topic
 import (
 	"context"
 	"fmt"
-
+	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/feature"
-
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/source"
+	"time"
 
 	"github.com/crossplane/crossplane-runtime/v2/pkg/controller"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
+	xpevent "github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/statemetrics"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	v1alpha1 "github.com/crossplane/provider-america/apis/middleware/v1alpha1"
 	apisv1alpha1 "github.com/crossplane/provider-america/apis/v1alpha1"
 )
 
 const (
-	errNotTopic   = "managed resource is not a Topic custom resource"
+	errNotTopic     = "managed resource is not a Topic custom resource"
 	errTrackPCUsage = "cannot track ProviderConfig usage"
-	errGetPC    = "cannot get ProviderConfig"
-	errGetCPC   = "cannot get ClusterProviderConfig"
-	errGetCreds = "cannot get credentials"
+	errGetPC        = "cannot get ProviderConfig"
+	errGetCPC       = "cannot get ClusterProviderConfig"
+	errGetCreds     = "cannot get credentials"
 
 	errNewClient = "cannot create new Service"
 )
@@ -56,16 +59,16 @@ var (
 )
 
 // SetupGated adds a controller that reconciles Topic managed resources with safe-start support.
-func SetupGated(mgr ctrl.Manager, o controller.Options) error {
+func SetupGated(mgr ctrl.Manager, o controller.Options, webhookEvents <-chan event.GenericEvent) error {
 	o.Gate.Register(func() {
-		if err := Setup(mgr, o); err != nil {
+		if err := Setup(mgr, o, webhookEvents); err != nil {
 			panic(errors.Wrap(err, "cannot setup Topic controller"))
 		}
 	}, v1alpha1.TopicGroupVersionKind)
 	return nil
 }
 
-func Setup(mgr ctrl.Manager, o controller.Options) error {
+func Setup(mgr ctrl.Manager, o controller.Options, webhookEvents <-chan event.GenericEvent) error {
 	name := managed.ControllerName(v1alpha1.TopicGroupKind)
 
 	opts := []managed.ReconcilerOption{
@@ -74,8 +77,8 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 			usage:        resource.NewProviderConfigUsageTracker(mgr.GetClient(), &apisv1alpha1.ProviderConfigUsage{}),
 			newServiceFn: newNoOpService}),
 		managed.WithLogger(o.Logger.WithValues("controller", name)),
-		managed.WithPollInterval(o.PollInterval),
-		managed.WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
+		managed.WithPollInterval(10 * time.Minute),
+		managed.WithRecorder(xpevent.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
 	}
 
 	if o.Features.Enabled(feature.EnableBetaManagementPolicies) {
@@ -106,6 +109,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		WithOptions(o.ForControllerRuntime()).
 		WithEventFilter(resource.DesiredStateChanged()).
 		For(&v1alpha1.Topic{}).
+		WatchesRawSource(source.Channel(webhookEvents, &handler.EnqueueRequestForObject{})).
 		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
 }
 
@@ -163,8 +167,7 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 	if err != nil {
 		return nil, errors.Wrap(err, errNewClient)
 	}
-
-	return &external{service: svc}, nil
+	return &external{service: svc, kube: c.kube}, nil
 }
 
 // An ExternalClient observes, then either creates, updates, or deletes an
@@ -172,6 +175,7 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 type external struct {
 	// A 'client' used to connect to the external resource API. In practice this
 	// would be something like an AWS SDK client.
+	kube    client.Client
 	service interface{}
 }
 
@@ -181,23 +185,27 @@ func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, errors.New(errNotTopic)
 	}
 
-	// These fmt statements should be removed in the real implementation.
-	fmt.Printf("Observing: %+v", cr)
+	// 1. Check if the resource "exists" (Mocking existence)
+	if cr.Status.AtProvider.Status == "" {
+		return managed.ExternalObservation{ResourceExists: false}, nil
+	}
 
+	// 2. Check if the Spec has changed since our last Update
+	// cr.ObjectMeta.Generation increments every time the Spec changes
+	if cr.ObjectMeta.Generation != cr.Status.AtProvider.ObservedGeneration {
+		// We trigger Update() by returning false here
+		cr.SetConditions(xpv1.Unavailable())
+		return managed.ExternalObservation{
+			ResourceExists:   true,
+			ResourceUpToDate: false,
+		}, nil
+	}
+
+	// 3. Otherwise, we are in sync
+	cr.SetConditions(xpv1.Available())
 	return managed.ExternalObservation{
-		// Return false when the external resource does not exist. This lets
-		// the managed resource reconciler know that it needs to call Create to
-		// (re)create the resource, or that it has successfully been deleted.
-		ResourceExists: true,
-
-		// Return false when the external resource exists, but it not up to date
-		// with the desired managed resource state. This lets the managed
-		// resource reconciler know that it needs to call Update.
+		ResourceExists:   true,
 		ResourceUpToDate: true,
-
-		// Return any details that may be required to connect to the external
-		// resource. These will be stored as the connection secret.
-		ConnectionDetails: managed.ConnectionDetails{},
 	}, nil
 }
 
@@ -207,11 +215,18 @@ func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalCreation{}, errors.New(errNotTopic)
 	}
 
-	fmt.Printf("Creating: %+v", cr)
+	// 1. Mock the API Call
+	fmt.Printf("Creating resource %s at Generation %d\n", cr.Name, cr.ObjectMeta.Generation)
 
+	// 2. Set the initial state so Observe() returns ResourceExists: true
+	cr.Status.AtProvider.Status = "Created"
+
+	// 3. Sync the generation immediately
+	// This ensures that we don't trigger an unnecessary Update() right after Create()
+	cr.Status.AtProvider.ObservedGeneration = cr.ObjectMeta.Generation
+	c.kube.Status().Update(ctx, cr)
 	return managed.ExternalCreation{
-		// Optionally return any details that may be required to connect to the
-		// external resource. These will be stored as the connection secret.
+		// ConnectionDetails can be returned if your mock "generates" a password/endpoint
 		ConnectionDetails: managed.ConnectionDetails{},
 	}, nil
 }
@@ -221,14 +236,17 @@ func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 	if !ok {
 		return managed.ExternalUpdate{}, errors.New(errNotTopic)
 	}
+	// Mocking an external API call
+	fmt.Printf("Mocking update for %s to Generation %d\n", cr.Name, cr.ObjectMeta.Generation)
 
-	fmt.Printf("Updating: %+v", cr)
+	// IMPORTANT: Sync the generations to stop the loop
+	cr.Status.AtProvider.ObservedGeneration = cr.ObjectMeta.Generation
 
-	return managed.ExternalUpdate{
-		// Optionally return any details that may be required to connect to the
-		// external resource. These will be stored as the connection secret.
-		ConnectionDetails: managed.ConnectionDetails{},
-	}, nil
+	// You could also mock a state change here
+	cr.Status.AtProvider.Status = "Updated"
+	c.kube.Status().Update(ctx, cr)
+	time.Sleep(10 * time.Second)
+	return managed.ExternalUpdate{}, nil
 }
 
 func (c *external) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
