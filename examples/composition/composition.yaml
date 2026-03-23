@@ -1,0 +1,179 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: standard.topicgroups.middleware.example.org
+spec:
+  compositeTypeRef:
+    apiVersion: middleware.example.org/v1alpha1
+    kind: XTopicGroup
+  mode: Pipeline
+  pipeline:
+      - step: patch-and-transform
+        functionRef:
+          name: function-patch-and-transform
+        input:
+          apiVersion: pt.fn.crossplane.io/v1beta1
+          kind: Resources
+          resources:
+            # -----------------------------------------------------------------
+            # TOPIC 1
+            # -----------------------------------------------------------------
+            - name: topic-1
+              base:
+                apiVersion: middleware.america.crossplane.io/v1alpha1
+                kind: Topic
+                spec:
+                  providerConfigRef:
+                    name: default
+                    kind: ClusterProviderConfig
+                  forProvider:
+                    description: "Example Topic 1 created via Crossplane Composition"
+              patches:
+                # Patch the namespace from the Claim to the underlying Resource
+                - type: FromCompositeFieldPath
+                  fromFieldPath: spec.claimRef.namespace
+                  toFieldPath: metadata.namespace
+                # Create external-name annotation: baseName-1
+                - type: CombineFromComposite
+                  combine:
+                    variables:
+                      - fromFieldPath: spec.parameters.baseName
+                    strategy: string
+                    string:
+                      fmt: "%s-1"
+                  toFieldPath: metadata.annotations[crossplane.io/external-name]
+                # Create forProvider.name: baseName-1
+                - type: CombineFromComposite
+                  combine:
+                    variables:
+                      - fromFieldPath: spec.parameters.baseName
+                    strategy: string
+                    string:
+                      fmt: "%s-1"
+                  toFieldPath: spec.forProvider.name
+                # Pass through remaining parameters
+                - type: FromCompositeFieldPath
+                  fromFieldPath: spec.parameters.numOfPartitions
+                  toFieldPath: spec.forProvider.num_of_partitions
+                - type: FromCompositeFieldPath
+                  fromFieldPath: spec.parameters.maxMessageSize
+                  toFieldPath: spec.forProvider.max_message_size
+                - type: FromCompositeFieldPath
+                  fromFieldPath: spec.parameters.maxConsumerGroups
+                  toFieldPath: spec.forProvider.max_consumer_groups
+                - type: FromCompositeFieldPath
+                  fromFieldPath: spec.parameters.retentionTime
+                  toFieldPath: spec.forProvider.retention_time
+
+            # -----------------------------------------------------------------
+            # TOPIC 2
+            # -----------------------------------------------------------------
+            - name: topic-2
+              base:
+                apiVersion: middleware.america.crossplane.io/v1alpha1
+                kind: Topic
+                spec:
+                  providerConfigRef:
+                    kind: ClusterProviderConfig
+                    name: default
+                  forProvider:
+                    description: "Example Topic 2 created via Crossplane Composition"
+              patches:
+                - type: FromCompositeFieldPath
+                  fromFieldPath: spec.claimRef.namespace
+                  toFieldPath: metadata.namespace
+                - type: CombineFromComposite
+                  combine:
+                    variables:
+                      - fromFieldPath: spec.parameters.baseName
+                    strategy: string
+                    string:
+                      fmt: "%s-2"
+                  toFieldPath: metadata.annotations[crossplane.io/external-name]
+                - type: CombineFromComposite
+                  combine:
+                    variables:
+                      - fromFieldPath: spec.parameters.baseName
+                    strategy: string
+                    string:
+                      fmt: "%s-2"
+                  toFieldPath: spec.forProvider.name
+                - type: FromCompositeFieldPath
+                  fromFieldPath: spec.parameters.numOfPartitions
+                  toFieldPath: spec.forProvider.num_of_partitions
+                - type: FromCompositeFieldPath
+                  fromFieldPath: spec.parameters.maxMessageSize
+                  toFieldPath: spec.forProvider.max_message_size
+                - type: FromCompositeFieldPath
+                  fromFieldPath: spec.parameters.maxConsumerGroups
+                  toFieldPath: spec.forProvider.max_consumer_groups
+                - type: FromCompositeFieldPath
+                  fromFieldPath: spec.parameters.retentionTime
+                  toFieldPath: spec.forProvider.retention_time
+
+            # -----------------------------------------------------------------
+            # TOPIC 3
+            # -----------------------------------------------------------------
+            - name: topic-3
+              base:
+                apiVersion: middleware.america.crossplane.io/v1alpha1
+                kind: Topic
+                spec:
+                  providerConfigRef:
+                    kind: ClusterProviderConfig
+                    name: default
+                  forProvider:
+                    description: "Example Topic 3 created via Crossplane Composition"
+              patches:
+                - type: FromCompositeFieldPath
+                  fromFieldPath: spec.claimRef.namespace
+                  toFieldPath: metadata.namespace
+                - type: CombineFromComposite
+                  combine:
+                    variables:
+                      - fromFieldPath: spec.parameters.baseName
+                    strategy: string
+                    string:
+                      fmt: "%s-3"
+                  toFieldPath: metadata.annotations[crossplane.io/external-name]
+                - type: CombineFromComposite
+                  combine:
+                    variables:
+                      - fromFieldPath: spec.parameters.baseName
+                    strategy: string
+                    string:
+                      fmt: "%s-3"
+                  toFieldPath: spec.forProvider.name
+                - type: FromCompositeFieldPath
+                  fromFieldPath: spec.parameters.numOfPartitions
+                  toFieldPath: spec.forProvider.num_of_partitions
+                - type: FromCompositeFieldPath
+                  fromFieldPath: spec.parameters.maxMessageSize
+                  toFieldPath: spec.forProvider.max_message_size
+                - type: FromCompositeFieldPath
+                  fromFieldPath: spec.parameters.maxConsumerGroups
+                  toFieldPath: spec.forProvider.max_consumer_groups
+                - type: FromCompositeFieldPath
+                  fromFieldPath: spec.parameters.retentionTime
+                  toFieldPath: spec.forProvider.retention_time
+      - step: sequence-creation
+        functionRef:
+          name: function-sequencer
+        input:
+          apiVersion: sequencer.fn.crossplane.io/v1beta1
+          kind: Input
+          rules:
+            - sequence:
+                - topic-2
+                - topic-3
+                - topic-1
+      - step: sequence-update
+        functionRef:
+          name: function-sequence-ordering
+        input:
+          apiVersion: template.fn.crossplane.io/v1beta1
+          kind: Input
+          spec:
+            defaultSequence:
+              - ["topic-2" , "topic-3"]
+              - ["topic-1"]

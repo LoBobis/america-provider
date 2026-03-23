@@ -1,0 +1,12 @@
+apiVersion: middleware.example.org/v1alpha1
+kind: TopicGroup
+metadata:
+  name: eyal-test4
+  namespace: eyal
+spec:
+  parameters:
+    baseName: topic-example
+    numOfPartitions: 6
+    maxMessageSize: 1048572
+    maxConsumerGroups: 11
+    retentionTime: 604800

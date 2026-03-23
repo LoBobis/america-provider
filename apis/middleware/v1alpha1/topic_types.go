@@ -1,10 +1,25 @@
+/*
+Copyright 2025 The Crossplane Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package v1alpha1
 
 import (
 	"reflect"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
@@ -16,19 +31,28 @@ type TopicParameters struct {
 	Name              string `json:"name"`
 	Description       string `json:"description"`
 	MaxMessageSize    uint   `json:"max_message_size"`
-	MaxThroughputIn   uint   `json:"max_throughput_in"`
 	MaxConsumerGroups uint   `json:"max_consumer_groups"`
 	RetentionTime     int    `json:"retention_time"`
 	NumOfPartitions   uint   `json:"num_of_partitions"`
 }
 
+// TopicObservation are the observable fields of a Topic.
+type TopicObservation struct {
+	Status             string `json:"status"`
+	ObservedGeneration int64  `json:"observedGeneration,omitempty"`
+	ObservableField    string `json:"observableField,omitempty"`
+}
+
 // A TopicSpec defines the desired state of a Topic.
 type TopicSpec struct {
 	xpv2.ManagedResourceSpec `json:",inline"`
-	Region                   string          `json:"region"`
-	Environment              string          `json:"environment"`
-	BundleID                 string          `json:"bundle_id"`
 	ForProvider              TopicParameters `json:"forProvider"`
+}
+
+// A TopicStatus represents the observed state of a Topic.
+type TopicStatus struct {
+	xpv1.ResourceStatus `json:",inline"`
+	AtProvider          TopicObservation `json:"atProvider,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -44,25 +68,9 @@ type Topic struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TopicSpec     `json:"spec"`
-	Status ResourceStatus `json:"status,omitempty"`
-
-	// +kubebuilder:default="KafkaAdvancedConfig1_3"
-	ResourceType string `json:"resource_type,omitempty"`
+	Spec   TopicSpec   `json:"spec"`
+	Status TopicStatus `json:"status,omitempty"`
 }
-
-func (t *Topic) GetName() string             { return t.Name }
-func (t *Topic) GetBundleID() string         { return t.Spec.BundleID }
-func (t *Topic) GetResourceType() string     { return t.ResourceType }
-func (t *Topic) GetEnvironment() string      { return t.Spec.Environment }
-func (t *Topic) GetRegion() string           { return t.Spec.Region }
-func (t *Topic) GetForProvider() interface{} { return &t.Spec.ForProvider }
-func (t *Topic) GetDeploymentID() string     { return t.Status.AtProvider.DeploymentID }
-
-func (t *Topic) SetDeploymentID(id string)                      { t.Status.AtProvider.DeploymentID = id }
-func (t *Topic) SetStatus(status string)                        { t.Status.AtProvider.Status = status }
-func (t *Topic) SetAdditionalInfo(raw *runtime.RawExtension)    { t.Status.AtProvider.AdditionalInfo = raw }
-func (t *Topic) SetCondition(condition xpv1.Condition)          { t.Status.SetConditions(condition) }
 
 // +kubebuilder:object:root=true
 

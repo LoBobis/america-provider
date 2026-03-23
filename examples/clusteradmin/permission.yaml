@@ -1,0 +1,31 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: crossplane-topic-admin
+rules:
+  - apiGroups:
+      - middleware.america.crossplane.io
+    resources:
+      - topics
+      - topics/status
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: crossplane-topic-admin-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: crossplane-topic-admin
+subjects:
+  - kind: ServiceAccount
+    name: crossplane
+    namespace: crossplane-system
