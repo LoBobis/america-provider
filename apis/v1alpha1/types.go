@@ -20,10 +20,20 @@ type ProviderCredentials struct {
 	xpv1.CommonCredentialSelectors `json:",inline"`
 }
 
+// AmericaConfig contains configuration for connecting to the America API.
+type AmericaConfig struct {
+	JWTKey     string `json:"jwtKey"`
+	AmericaURL string `json:"americaURL"`
+	ProjectID  string `json:"projectID"`
+}
+
 type ProviderConfigSpec struct {
 	AmericaURL string `json:"america_url"`
 	// Credentials required to authenticate to this provider.
 	Credentials ProviderCredentials `json:"credentials"`
+
+	// AmericaConfig contains configuration for the America API.
+	AmericaConfig AmericaConfig `json:"americaConfig,omitempty"`
 }
 
 // +kubebuilder:object:root=true
