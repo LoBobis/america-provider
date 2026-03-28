@@ -10,7 +10,7 @@ import (
 	xpv1 "github.com/crossplane/crossplane-runtime/v2/apis/common/v1"
 	xpv2 "github.com/crossplane/crossplane-runtime/v2/apis/common/v2"
 
-	americaClient "github.com/crossplane/provider-template/internal/clients/america"
+	americaClient "github.com/crossplane/provider-america/internal/clients/america"
 )
 
 // ServiceParameters are the configurable fields of a Service.
