@@ -14,8 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	apisv1alpha1 "github.com/crossplane/provider-template/apis/v1alpha1"
-	americaClient "github.com/crossplane/provider-template/internal/clients/america"
+	apisv1alpha1 "github.com/crossplane/provider-america/apis/v1alpha1"
+	americaClient "github.com/crossplane/provider-america/internal/clients/america"
 )
 
 const (
@@ -57,34 +57,42 @@ func CreateExternal(ctx context.Context, america_client americaClient.Client, am
 	cr Deployable) (managed.ExternalCreation, error) {
 
 	fmt.Println("Started Create Operation For Resource With Name:", cr.GetName())
+
+	// Serialize ForProvider parameters to JSON string
+	paramsJSON, err := json.Marshal(cr.GetForProvider())
+	if err != nil {
+		return managed.ExternalCreation{}, fmt.Errorf("cannot marshal parameters for %s: %w", cr.GetName(), err)
+	}
+
 	resp, err := america_client.CreateDeployment(
+		ctx,
 		cr.GetName(),
-		americaConfig.JWTKey,
 		americaConfig.AmericaURL,
-		americaConfig.ProjectID,
-		cr.GetBundleID(),
 		cr.GetResourceType(),
-		cr.GetEnvironment(),
-		cr.GetRegion(),
-		cr.GetForProvider(),
+		string(paramsJSON),
 	)
 
 	if err != nil {
 		fmt.Println("Error Creating Resource:", err)
 		return managed.ExternalCreation{}, fmt.Errorf("America create failed for %s: %w", cr.GetName(), err)
 	}
-	cr.SetDeploymentID(resp.LatestOperation.DeploymentUUID)
+	cr.SetDeploymentID(resp.DeploymentId)
 	cr.SetStatus(americaClient.DeploymentStatuses.PENDING)
 
 	if err := updateCRStatus(ctx, kube, cr); err != nil {
 		return managed.ExternalCreation{}, err
 	}
 
-	fmt.Printf("Creating: %+v \n", resp.LatestOperation.DeploymentUUID)
+	fmt.Printf("Creating: %+v \n", resp.DeploymentId)
 
 	return managed.ExternalCreation{
 		ConnectionDetails: managed.ConnectionDetails{},
 	}, nil
+}
+
+func UpdateExternal(ctx context.Context, america_client americaClient.Client, americaConfig apisv1alpha1.AmericaConfig, kube client.Client,
+	cr Deployable) (managed.ExternalUpdate, error) {
+	return managed.ExternalUpdate{}, nil
 }
 
 // DeleteExternal deletes a deployment in America.
@@ -92,7 +100,8 @@ func DeleteExternal(america_client americaClient.Client, americaConfig apisv1alp
 	cr Deployable) (managed.ExternalDelete, error) {
 
 	fmt.Println("Started Delete Operation For Resource With Name:", cr.GetName())
-	america_client.DeleteDeployment(americaConfig.JWTKey, americaConfig.AmericaURL, cr.GetDeploymentID())
+	// Note: The current client API does not have a DeleteDeployment method.
+	// Delete is a no-op until the client is extended.
 
 	return managed.ExternalDelete{}, nil
 }
@@ -113,10 +122,10 @@ func ObserveExternal(ctx context.Context, america_client americaClient.Client, a
 	deploymentID := cr.GetDeploymentID()
 	fmt.Println("Deployment id:", deploymentID)
 	url := americaConfig.AmericaURL
-	resp, err := america_client.GetDeployment(deploymentID, americaConfig.JWTKey, url)
+	resp, err := america_client.GetDeployment(ctx, deploymentID, url)
 
 	if err != nil {
-		fmt.Println("Error marshalling JSON:", err)
+		fmt.Println("Error getting deployment:", err)
 		return managed.ExternalObservation{}, errors.New(errNotFound)
 	}
 
@@ -124,28 +133,20 @@ func ObserveExternal(ctx context.Context, america_client americaClient.Client, a
 	cr.SetStatus(resp.Status)
 
 	if resp.Status == americaClient.DeploymentStatuses.CREATED {
-		ad, err := json.Marshal(resp.AdditionalInfo)
-		if err != nil {
+		// Store the parameters as additional info
+		if resp.Parameters != nil {
+			ad, err := json.Marshal(resp.Parameters)
+			if err == nil {
+				raw := runtime.RawExtension{Raw: ad}
+				cr.SetAdditionalInfo(&raw)
+			}
 		}
-
-		raw := runtime.RawExtension{
-			Raw: ad,
-		}
-		cr.SetAdditionalInfo(&raw)
 		cr.SetCondition(xpv1.Available())
 	}
 
 	if err := updateCRStatus(ctx, kube, cr); err != nil {
 		return managed.ExternalObservation{}, err
 	}
-
-	// if resp.Status == americaClient.DeploymentStatuses.ERROR {
-	// 	return managed.ExternalObservation{
-	// 		ResourceExists:    false,
-	// 		ResourceUpToDate:  false,
-	// 		ConnectionDetails: managed.ConnectionDetails{},
-	// 	}, nil
-	// }
 
 	if resp.Status == americaClient.DeploymentStatuses.DELETED {
 		return managed.ExternalObservation{

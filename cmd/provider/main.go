@@ -18,11 +18,9 @@ package main
 
 import (
 	"fmt"
-	americawebhook "github.com/crossplane/provider-america/internal/america-webhook"
 	"io"
 	"os"
 	"path/filepath"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -31,6 +29,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 
@@ -49,6 +48,7 @@ import (
 	"github.com/crossplane/provider-america/apis"
 	america "github.com/crossplane/provider-america/internal/controller"
 	"github.com/crossplane/provider-america/internal/version"
+	"github.com/crossplane/provider-america/internal/webhook"
 )
 
 func main() {
@@ -62,6 +62,8 @@ func main() {
 		pollStateMetricInterval = app.Flag("poll-state-metric", "State metric recording interval").Default("5s").Duration()
 
 		maxReconcileRate = app.Flag("max-reconcile-rate", "The global maximum rate per second at which resources may checked for drift from the desired state.").Default("10").Int()
+
+		webhookPort = app.Flag("webhook-port", "Port for the America webhook server.").Default("8081").Envar("WEBHOOK_PORT").Int()
 
 		enableManagementPolicies = app.Flag("enable-management-policies", "Enable support for Management Policies.").Default("true").Envar("ENABLE_MANAGEMENT_POLICIES").Bool()
 		enableChangeLogs         = app.Flag("enable-changelogs", "Enable support for capturing change logs during reconciliation.").Default("false").Envar("ENABLE_CHANGE_LOGS").Bool()
@@ -150,13 +152,17 @@ func main() {
 		o.ChangeLogOptions = &clo
 	}
 
-	webhookEvents := make(chan event.GenericEvent, 1024)
-
-	// 2. Start webhook server
-	whs := &americawebhook.Server{Events: webhookEvents}
-	go whs.Start(":8081")
+	// Create a shared event channel for the America webhook server.
+	// The webhook pushes GenericEvents into this channel, and each
+	// controller watches it via source.Channel + WatchesRawSource.
+	webhookEventCh := make(chan event.GenericEvent, 100)
 
 	kingpin.FatalIfError(customresourcesgate.Setup(mgr, o), "Cannot setup CRD gate controller")
-	kingpin.FatalIfError(america.SetupGated(mgr, o, webhookEvents), "Cannot setup America controllers")
+	kingpin.FatalIfError(america.SetupGated(mgr, o, webhookEventCh), "Cannot setup America controllers")
+
+	// Start the America webhook server as a controller-runtime Runnable.
+	webhookServer := webhook.NewServer(log, *webhookPort, webhookEventCh)
+	kingpin.FatalIfError(mgr.Add(webhookServer), "Cannot add webhook server to manager")
+
 	kingpin.FatalIfError(mgr.Start(ctrl.SetupSignalHandler()), "Cannot start controller manager")
 }

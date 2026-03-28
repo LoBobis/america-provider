@@ -1,20 +1,4 @@
-/*
-Copyright 2025 The Crossplane Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-package topic
+package datapower
 
 import (
 	"context"
@@ -41,28 +25,22 @@ import (
 )
 
 const (
-	errNotTopic     = "managed resource is not a Topic custom resource"
-	errTrackPCUsage = "cannot track ProviderConfig usage"
-	errGetPC        = "cannot get ProviderConfig"
-	errGetCPC       = "cannot get ClusterProviderConfig"
-	errGetCreds     = "cannot get credentials"
-
-	errNewClient = "cannot create new Service"
+	errNotDataPower = "managed resource is not a DataPower custom resource"
 )
 
-// SetupGated adds a controller that reconciles Topic managed resources with safe-start support.
+// SetupGated adds a controller that reconciles DataPower managed resources with safe-start support.
 func SetupGated(mgr ctrl.Manager, o controller.Options, webhookEventCh chan event.GenericEvent) error {
 	o.Gate.Register(func() {
 		if err := Setup(mgr, o, webhookEventCh); err != nil {
-			panic(errors.Wrap(err, "cannot setup Topic controller"))
+			panic(errors.Wrap(err, "cannot setup DataPower controller"))
 		}
-	}, v1alpha1.TopicGroupVersionKind)
+	}, v1alpha1.DataPowerGroupVersionKind)
 	return nil
 }
 
-// Setup adds a controller that reconciles Topic managed resources.
+// Setup adds a controller that reconciles DataPower managed resources.
 func Setup(mgr ctrl.Manager, o controller.Options, webhookEventCh chan event.GenericEvent) error {
-	name := managed.ControllerName(v1alpha1.TopicGroupKind)
+	name := managed.ControllerName(v1alpha1.DataPowerGroupKind)
 
 	opts := []managed.ReconcilerOption{
 		managed.WithExternalConnector(&connector{
@@ -89,20 +67,20 @@ func Setup(mgr ctrl.Manager, o controller.Options, webhookEventCh chan event.Gen
 
 	if o.MetricOptions != nil && o.MetricOptions.MRStateMetrics != nil {
 		stateMetricsRecorder := statemetrics.NewMRStateRecorder(
-			mgr.GetClient(), o.Logger, o.MetricOptions.MRStateMetrics, &v1alpha1.TopicList{}, o.MetricOptions.PollStateMetricInterval,
+			mgr.GetClient(), o.Logger, o.MetricOptions.MRStateMetrics, &v1alpha1.DataPowerList{}, o.MetricOptions.PollStateMetricInterval,
 		)
 		if err := mgr.Add(stateMetricsRecorder); err != nil {
-			return errors.Wrap(err, "cannot register MR state metrics recorder for kind v1alpha1.TopicList")
+			return errors.Wrap(err, "cannot register MR state metrics recorder for kind v1alpha1.DataPowerList")
 		}
 	}
 
-	r := managed.NewReconciler(mgr, resource.ManagedKind(v1alpha1.TopicGroupVersionKind), opts...)
+	r := managed.NewReconciler(mgr, resource.ManagedKind(v1alpha1.DataPowerGroupVersionKind), opts...)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
 		WithOptions(o.ForControllerRuntime()).
 		WithEventFilter(resource.DesiredStateChanged()).
-		For(&v1alpha1.Topic{}).
+		For(&v1alpha1.DataPower{}).
 		WatchesRawSource(source.Channel(webhookEventCh, &handler.EnqueueRequestForObject{})).
 		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
 }
@@ -115,9 +93,9 @@ type connector struct {
 }
 
 func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.ExternalClient, error) {
-	cr, ok := mg.(*v1alpha1.Topic)
+	cr, ok := mg.(*v1alpha1.DataPower)
 	if !ok {
-		return nil, errors.New(errNotTopic)
+		return nil, errors.New(errNotDataPower)
 	}
 
 	l, americaConfig, kube, america_client, err := common.ConnectExternal(
@@ -143,35 +121,35 @@ type external struct {
 }
 
 func (c *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
-	cr, ok := mg.(*v1alpha1.Topic)
+	cr, ok := mg.(*v1alpha1.DataPower)
 	if !ok {
-		return managed.ExternalObservation{}, errors.New(errNotTopic)
+		return managed.ExternalObservation{}, errors.New(errNotDataPower)
 	}
 
-	return common.ObserveExternal(ctx, c.america_client, c.americaConfig, c.kube, cr, errNotTopic)
+	return common.ObserveExternal(ctx, c.america_client, c.americaConfig, c.kube, cr, errNotDataPower)
 }
 
 func (c *external) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
-	cr, ok := mg.(*v1alpha1.Topic)
+	cr, ok := mg.(*v1alpha1.DataPower)
 	if !ok {
-		return managed.ExternalCreation{}, errors.New(errNotTopic)
+		return managed.ExternalCreation{}, errors.New(errNotDataPower)
 	}
 	return common.CreateExternal(ctx, c.america_client, c.americaConfig, c.kube, cr)
 }
 
 func (c *external) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
-	cr, ok := mg.(*v1alpha1.Topic)
+	cr, ok := mg.(*v1alpha1.DataPower)
 	if !ok {
-		return managed.ExternalUpdate{}, errors.New(errNotTopic)
+		return managed.ExternalUpdate{}, errors.New(errNotDataPower)
 	}
 
 	return common.UpdateExternal(ctx, c.america_client, c.americaConfig, c.kube, cr)
 }
 
 func (c *external) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
-	cr, ok := mg.(*v1alpha1.Topic)
+	cr, ok := mg.(*v1alpha1.DataPower)
 	if !ok {
-		return managed.ExternalDelete{}, errors.New(errNotTopic)
+		return managed.ExternalDelete{}, errors.New(errNotDataPower)
 	}
 
 	return common.DeleteExternal(c.america_client, c.americaConfig, cr)

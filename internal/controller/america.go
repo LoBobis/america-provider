@@ -22,19 +22,27 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	"github.com/crossplane/provider-america/internal/controller/config"
+	"github.com/crossplane/provider-america/internal/controller/datapower"
 	"github.com/crossplane/provider-america/internal/controller/topic"
 )
 
 // SetupGated creates all America controllers with safe-start support and adds them to
 // the supplied manager.
-func SetupGated(mgr ctrl.Manager, o controller.Options, webhookEvents <-chan event.GenericEvent) error {
-	for _, setup := range []func(ctrl.Manager, controller.Options, <-chan event.GenericEvent) error{
-		config.Setup,
-		topic.Setup,
+func SetupGated(mgr ctrl.Manager, o controller.Options, webhookEventCh chan event.GenericEvent) error {
+	// Controllers that don't use the webhook channel.
+	if err := config.Setup(mgr, o, webhookEventCh); err != nil {
+		return err
+	}
+
+	// America controllers that use the webhook channel for event-driven reconciliation.
+	for _, setup := range []func(ctrl.Manager, controller.Options, chan event.GenericEvent) error{
+		topic.SetupGated,
+		datapower.SetupGated,
 	} {
-		if err := setup(mgr, o, webhookEvents); err != nil {
+		if err := setup(mgr, o, webhookEventCh); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
