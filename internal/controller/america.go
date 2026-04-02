@@ -23,6 +23,7 @@ import (
 
 	"github.com/crossplane/provider-america/internal/controller/config"
 	"github.com/crossplane/provider-america/internal/controller/datapower"
+	"github.com/crossplane/provider-america/internal/controller/dynamicoperation"
 	"github.com/crossplane/provider-america/internal/controller/topic"
 )
 
@@ -42,6 +43,12 @@ func SetupGated(mgr ctrl.Manager, o controller.Options, webhookEventCh chan even
 		if err := setup(mgr, o, webhookEventCh); err != nil {
 			return err
 		}
+	}
+
+	// DynamicOperation uses a custom controller (not managed reconciler)
+	// with a predicate filter that stops reconciling completed/failed operations.
+	if err := dynamicoperation.Setup(mgr, o.Logger); err != nil {
+		return err
 	}
 
 	return nil

@@ -14,6 +14,8 @@ import (
 type Client interface {
 	CreateDeployment(ctx context.Context, name string,america_url string, resource_type string, parameters string) (creationResponse, error)
 	GetDeployment(ctx context.Context, deployment_id string,america_url string) (AmericaDeploymentResponse, error)
+	CreateDynamicOperation(ctx context.Context, america_url string, operationType string, payload string) (DynamicOperationResponse, error)
+	GetDynamicOperation(ctx context.Context, america_url string, operationID string) (DynamicOperationResponse, error)
 }
 
 type client struct {
@@ -38,6 +40,17 @@ type AmericaDeploymentResponse struct {
 type creationResponse struct {
         DeploymentId string `json:"deployment_id"`
 		Message string `json:"message"`
+}
+
+type DynamicOperationRequest struct {
+	OperationType string `json:"operation_type"`
+	Payload       string `json:"payload"`
+}
+
+type DynamicOperationResponse struct {
+	OperationID string                 `json:"operation_id"`
+	Status      string                 `json:"status"`
+	Result      map[string]interface{} `json:"result,omitempty"`
 }
 
 
@@ -110,6 +123,62 @@ func (ac *client) GetDeployment(ctx context.Context, deployment_id string,americ
 
 
 
+
+func (ac *client) CreateDynamicOperation(ctx context.Context, america_url string, operationType string, payload string) (DynamicOperationResponse, error) {
+	reqBody := DynamicOperationRequest{
+		OperationType: operationType,
+		Payload:       payload,
+	}
+
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return DynamicOperationResponse{}, errors.Wrap(err, "cannot marshal dynamic operation request")
+	}
+
+	url := america_url + "/operations"
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return DynamicOperationResponse{}, errors.Wrap(err, "cannot create dynamic operation request")
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return DynamicOperationResponse{}, errors.Wrap(err, "cannot send dynamic operation request")
+	}
+	defer resp.Body.Close()
+
+	var result DynamicOperationResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return DynamicOperationResponse{}, errors.Wrap(err, "cannot decode dynamic operation response")
+	}
+	return result, nil
+}
+
+func (ac *client) GetDynamicOperation(ctx context.Context, america_url string, operationID string) (DynamicOperationResponse, error) {
+	url := america_url + "/operations/" + operationID
+	ac.log.Info("GetDynamicOperation", "url", url)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return DynamicOperationResponse{}, errors.Wrap(err, "cannot create get operation request")
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return DynamicOperationResponse{}, errors.Wrap(err, "cannot send get operation request")
+	}
+	defer resp.Body.Close()
+
+	var result DynamicOperationResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return DynamicOperationResponse{}, errors.Wrap(err, "cannot decode get operation response")
+	}
+	return result, nil
+}
 
 // NewClient returns a new Http Client
 func NewClient(log logging.Logger, authorizationToken string) (Client, error) {

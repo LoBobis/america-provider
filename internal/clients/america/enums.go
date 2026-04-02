@@ -16,6 +16,20 @@ var DeploymentStatuses = DeploymentStatusesType{
 	ERROR:   "ERROR",
 }
 
+// OperationStatusesType holds the possible operation statuses.
+type OperationStatusesType struct {
+	PENDING   string
+	COMPLETED string
+	FAILED    string
+}
+
+// OperationStatuses contains the possible operation statuses.
+var OperationStatuses = OperationStatusesType{
+	PENDING:   "PENDING",
+	COMPLETED: "COMPLETED",
+	FAILED:    "FAILED",
+}
+
 // AmericaEnvType holds environment constants.
 type AmericaEnvType struct {
 	GLOBAL string
