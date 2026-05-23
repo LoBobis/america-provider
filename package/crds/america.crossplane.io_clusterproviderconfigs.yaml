@@ -4,19 +4,19 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: providerconfigs.template.crossplane.io
+  name: clusterproviderconfigs.america.crossplane.io
 spec:
-  group: template.crossplane.io
+  group: america.crossplane.io
   names:
     categories:
     - crossplane
     - provider
-    - template
-    kind: ProviderConfig
-    listKind: ProviderConfigList
-    plural: providerconfigs
-    singular: providerconfig
-  scope: Namespaced
+    - america
+    kind: ClusterProviderConfig
+    listKind: ClusterProviderConfigList
+    plural: clusterproviderconfigs
+    singular: clusterproviderconfig
+  scope: Cluster
   versions:
   - additionalPrinterColumns:
     - jsonPath: .metadata.creationTimestamp
@@ -29,8 +29,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: A ProviderConfig configures a Helm 'provider', i.e. a connection
-          to a particular
+        description: A ClusterProviderConfig configures a America provider.
         properties:
           apiVersion:
             description: |-
@@ -51,6 +50,8 @@ spec:
             type: object
           spec:
             properties:
+              america_url:
+                type: string
               credentials:
                 description: Credentials required to authenticate to this provider.
                 properties:
@@ -108,6 +109,7 @@ spec:
                 - source
                 type: object
             required:
+            - america_url
             - credentials
             type: object
           status:

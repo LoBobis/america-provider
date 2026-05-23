@@ -1,0 +1,44 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xtopicgroups.middleware.example.org
+spec:
+  group: middleware.example.org
+  names:
+    kind: XTopicGroup
+    plural: xtopicgroups
+  claimNames:
+    kind: TopicGroup
+    plural: topicgroups
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                parameters:
+                  type: object
+                  description: "Configuration for the Topic Group"
+                  properties:
+                    baseName:
+                      type: string
+                      description: "The base name for the topics. Suffixes -1, -2, -3 will be added."
+                    numOfPartitions:
+                      type: integer
+                      default: 3
+                    maxMessageSize:
+                      type: integer
+                      default: 1048576
+                    maxConsumerGroups:
+                      type: integer
+                      default: 10
+                    retentionTime:
+                      type: integer
+                      default: 604800
+                  required:
+                    - baseName

@@ -12,10 +12,10 @@ type: Opaque
 data:
   credentials: QkFTRTY0RU5DT0RFRF9QUk9WSURFUl9DUkVEUwo=
 ---
-apiVersion: template.crossplane.io/v1alpha1
+apiVersion: america.crossplane.io/v1alpha1
 kind: ProviderConfig
 metadata:
-  name: example
+  name: default
   namespace: default
 spec:
   credentials:
@@ -25,11 +25,12 @@ spec:
       name: example-provider-secret
       key: credentials
 ---
-apiVersion: template.crossplane.io/v1alpha1
+apiVersion: america.crossplane.io/v1alpha1
 kind: ClusterProviderConfig
 metadata:
-  name: example
+  name: default
 spec:
+  america_url: "http://localhost:8000"
   credentials:
     source: Secret
     secretRef:
