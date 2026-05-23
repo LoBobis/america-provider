@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-america
+  namespace: crossplane-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mock-america
+  template:
+    metadata:
+      labels:
+        app: mock-america
+    spec:
+      containers:
+        - name: mock-america
+          image: ${MOCK_AMERICA_IMAGE}
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mock-america
+  namespace: crossplane-system
+spec:
+  selector:
+    app: mock-america
+  ports:
+    - port: 8080
+      targetPort: 8080

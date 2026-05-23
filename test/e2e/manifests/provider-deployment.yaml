@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: crossplane-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: provider-america
+  namespace: crossplane-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: provider-america
+  template:
+    metadata:
+      labels:
+        app: provider-america
+    spec:
+      serviceAccountName: provider-america
+      containers:
+        - name: provider
+          image: ${PROVIDER_IMAGE}
+          args:
+            - --debug
+          ports:
+            - containerPort: 8081
+              name: webhook
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: provider-america
+  namespace: crossplane-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: provider-america
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: provider-america
+    namespace: crossplane-system

@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: america-creds
+  namespace: default
+type: Opaque
+stringData:
+  credentials: "test-token"
+---
+apiVersion: america.crossplane.io/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: default
+  namespace: default
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      name: america-creds
+      namespace: default
+      key: credentials
+  americaConfig:
+    americaURL: "http://mock-america.crossplane-system.svc.cluster.local:8080"
+    jwtKey: "test"
+    projectID: "test-project"

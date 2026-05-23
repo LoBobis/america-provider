@@ -1,0 +1,54 @@
+apiVersion: middleware.america.crossplane.io/v1alpha1
+kind: Topic
+metadata:
+  name: test-topic
+  namespace: default
+spec:
+  providerConfigRef:
+    name: default
+  region: "us-east-1"
+  environment: "dev"
+  bundle_id: "test-bundle"
+  forProvider:
+    resource_type: "KafkaAdvancedConfig1_3"
+    properties:
+      name: "test-topic"
+      description: "E2E test topic"
+      max_message_size: 1048576
+      max_consumer_groups: 10
+      retention_time: 86400
+      num_of_partitions: 3
+    resource_info: null
+---
+apiVersion: middleware.america.crossplane.io/v1alpha1
+kind: DataPower
+metadata:
+  name: test-datapower
+  namespace: default
+spec:
+  providerConfigRef:
+    name: default
+  region: "us-east-1"
+  environment: "dev"
+  bundle_id: "test-bundle"
+  forProvider:
+    resource_type: "DataPowerAdvanced1_0"
+    properties:
+      name: "test-datapower"
+      port: 443
+      memory: 2048
+      enable_t_l_s: true
+    resource_info: null
+---
+apiVersion: middleware.america.crossplane.io/v1alpha1
+kind: Service
+metadata:
+  name: test-service
+  namespace: default
+spec:
+  providerConfigRef:
+    name: default
+  bundle_id: "test-bundle"
+  forProvider:
+    serviceName: "test-service"
+    servicePassword: "test-pass"
